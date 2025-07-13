@@ -4,10 +4,14 @@ const express = require('express');
 const path = require('node:path');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
-const { Client, Collection, Events, GatewayIntentBits, Partials, PermissionsBitField, AttachmentBuilder } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
 const token = process.env.TOKEN;
 const mongoURI = process.env.MONGO_URI;
 const { ActivityType } = require("discord.js");
+const AiChatLog = require('./models/aiChatLog');
+const {
+	v4: uuidv4,
+} = require('uuid');
 
 const Guild = require('./models/guildModel');
 
@@ -16,6 +20,10 @@ const port = process.env.PORT || 3009;
 
 const statusDataRaw = fs.readFileSync('./status.json', 'utf8');
 const statusJson = JSON.parse(statusDataRaw);
+
+function generateUUID() {
+	return uuidv4();
+}
 
 let status = statusJson.map(entry => ({
     name: entry.name,
@@ -220,7 +228,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return { name: option.name, type: option.type, value };
     });
 
-    console.log(`Optionen: ${JSON.stringify(options)}`);
+    // console.log(`Optionen: ${JSON.stringify(options)}`);
 
     try {
         await command.execute(interaction, client);
@@ -229,18 +237,18 @@ client.on(Events.InteractionCreate, async interaction => {
         commandStats[commandName].totalDuration += duration;
 
 
-        console.log("Command executed", {
-            guildName: interaction.guild.name,
-            guildId: interaction.guild.id,
-            channelName: interaction.channel.name,
-            channelId: interaction.channel.id,
-            userName: interaction.user.username,
-            userId: interaction.user.id,
-            commandName,
-            subCommand: interaction.options.getSubcommand(false),
-            options,
-            duration: `${duration} ms`
-        });
+        // console.log("Command executed", {
+        //     guildName: interaction.guild.name,
+        //     guildId: interaction.guild.id,
+        //     channelName: interaction.channel.name,
+        //     channelId: interaction.channel.id,
+        //     userName: interaction.user.username,
+        //     userId: interaction.user.id,
+        //     commandName,
+        //     subCommand: interaction.options.getSubcommand(false),
+        //     options,
+        //     duration: `${duration} ms`
+        // });
     } catch (error) {
         console.error(`Command execution error: ${error.message}`, {
             commandName: commandName,
@@ -303,8 +311,46 @@ client.on('messageCreate', async (message) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
+    const chatId = generateUUID();
 
     if (interaction.customId === 'closeAiChat') {
+        const confirmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('confirmCloseAiChat')
+                .setLabel('✅ Ja, schließen')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('cancelCloseAiChat')
+                .setLabel('❌ Abbrechen')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        const confirmEmbed = new EmbedBuilder()
+            .setTitle('AI Chat schließen?')
+            .setDescription('Möchtest du deinen privaten AI-Chat wirklich schließen?\nDer Chat wird **gelöscht** und dir wird ein Transkript per DM gesendet.')
+            .setColor(0xF04747);
+
+        await interaction.reply({
+            embeds: [confirmEmbed],
+            components: [confirmRow],
+            ephemeral: true
+        });
+
+        return;
+    }
+    if (interaction.customId === 'cancelCloseAiChat') {
+        const cancelledEmbed = new EmbedBuilder()
+            .setDescription('Das Schließen des AI-Chats wurde abgebrochen.')
+            .setColor(0x57F287);
+
+        await interaction.update({
+            embeds: [cancelledEmbed],
+            components: []
+        });
+
+        return;
+    }
+    if (interaction.customId === 'confirmCloseAiChat') {
         try {
             const guildModel = await Guild.findOne({ key: interaction.guild.id });
 
@@ -328,6 +374,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const channel = interaction.guild.channels.cache.get(userChannelId);
             const messages = await channel.messages.fetch({ limit: 100 });
             const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+            const log = new AiChatLog({
+                guildId: interaction.guild.id,
+                chatId,
+                userId: interaction.user.id,
+                channelId: channel.id,
+                channelName: channel.name,
+                messages: sortedMessages.map(msg => ({
+                    authorId: msg.author.id,
+                    authorName: msg.author.username,
+                    content: msg.content,
+                    timestamp: msg.createdAt
+                }))
+            });
+
+            await log.save();
+
             let html = `
                 <!DOCTYPE html>
                 <html lang="en">
@@ -436,9 +499,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             const buffer = Buffer.from(html, 'utf-8');
             const attachment = new AttachmentBuilder(buffer, { name: `chat-transcript-${channel.name}.html` });
+
             const user = await interaction.user.createDM();
             await user.send({
-                content: 'Here is the transcript of your AI chat channel.',
+                content: 'Hier ist das Transkript deines AI-Chat-Kanals.',
                 files: [attachment]
             });
 
@@ -450,10 +514,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         } catch (error) {
             console.error('Error closing AI chat:', error);
             await interaction.reply({
-                content: 'Something went wrong while closing the AI chat.',
+                content: 'Etwas ist beim Schließen des AI-Chats schiefgelaufen.',
                 ephemeral: true,
             });
         }
+        return;
     }
 });
 

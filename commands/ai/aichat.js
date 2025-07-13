@@ -25,7 +25,18 @@ module.exports = {
             subcommand
                 .setName('create')
                 .setDescription('Create a private AI channel for chatting.')
+                .addStringOption(option =>
+                    option
+                        .setName('model')
+                        .setDescription('Wähle ein AI-Modell (optional)')
+                        .setRequired(false)
+                        .addChoices(
+                            ['llama3:8b', 'llama3:latest', 'llama3.1:8b', 'llama-guard3:1b', 'llama-guard3:latest', 'deepseek-r1-abliterated:14b', 'mistral:7b', 'vicuna:13b']
+                                .map(model => ({ name: model, value: model }))
+                        )
+                )
         )
+
         .addSubcommand(subcommand =>
             subcommand
                 .setName('close')
@@ -47,6 +58,7 @@ module.exports = {
                 });
                 const staffRoles = guildModel?.settings?.ticketStaffRoles || [];
                 const categoryName = 'AI User Chats';
+                const selectedModel = interaction.options.getString('model') || 'llama3:8b';
 
                 const aiUserChannels = guildModel?.settings?.aiUserChannel || [];
                 const existingChannelId = aiUserChannels.find(channelId => {
@@ -85,16 +97,17 @@ module.exports = {
                         id: interaction.user.id,
                         allow: ['ViewChannel'],
                     },
-					...staffRoles.map(roleId => ({
-                            id: roleId,
-                            deny: [PermissionsBitField.Flags.ViewChannel],
-                        })),
+                    ...staffRoles.map(roleId => ({
+                        id: roleId,
+                        deny: [PermissionsBitField.Flags.ViewChannel],
+                    })),
                 ];
 
                 const channel = await interaction.guild.channels.create({
                     name: `${interaction.user.username}-ai`,
                     type: 0,
                     parent: category.id,
+                    topic: `model=${selectedModel}`,
                     permissionOverwrites: roleOverwrites,
                 });
 
@@ -102,7 +115,7 @@ module.exports = {
                 await guildModel.save();
                 const aiEmbed = new EmbedBuilder()
                     .setTitle('Welcome to your private AI Chat!')
-                    .setDescription(`This channel is now your **private AI assistant**, powered by the **LLaMA 3: 8B** language model.\n\nYou can ask questions, brainstorm ideas, or get help — just like talking to a smart assistant.`)
+                    .setDescription(`This channel is now your **private AI assistant**, powered by the **${selectedModel}** model.\n\nYou can ask questions, brainstorm ideas, or get help — just like talking to a smart assistant.`)
                     .setColor(0x5865F2)
                     .setTimestamp()
                     .setFooter({ text: 'Powered by GuardianV AI' });
@@ -134,7 +147,8 @@ module.exports = {
 
                     if (!userChannelId) {
                         interaction.reply({
-                            content: 'You do not have a channel to close.', ephemeral: true });
+                            content: 'You do not have a channel to close.', ephemeral: true
+                        });
                         return;
                     }
 

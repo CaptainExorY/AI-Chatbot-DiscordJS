@@ -54,6 +54,11 @@ async function handleAIMessage(message) {
 
             if ((isInAIChannel || isInAIUserChannels) && hasRequiredRoles) {
                 await message.channel.sendTyping();
+                let selectedModel = 'llama3:8b';
+
+                if (message.channel.topic && message.channel.topic.startsWith('model=')) {
+                    selectedModel = message.channel.topic.replace('model=', '').trim();
+                }
 
                 let aiResponse;
                 let responseMaxLength = 2000;
@@ -67,7 +72,7 @@ async function handleAIMessage(message) {
                     responseMaxLength = currentAIClient.options.maxLength;
 
                 } else {
-                    aiResponse = await currentAIClient.getChatResponse(message);
+                    aiResponse = await currentAIClient.getChatResponse(message, selectedModel);
                     responseMaxLength = currentAIClient.options.maxLength;
                 }
                 if (!isInAIUserChannels) {
