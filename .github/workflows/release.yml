@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         os: [linux, win, macos]
@@ -49,7 +49,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.file }}
+          name: ${{ matrix.os }}
           path: artifacts/
 
   release:
@@ -78,16 +78,16 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.VERSION }}
           name: v${{ steps.get_version.outputs.VERSION }}
           files: |
-            dist/discordjsaichat-linux/discordjsaichat-linux
-            dist/discordjsaichat-linux/.env.example
-            dist/discordjsaichat-linux/status.json
+            dist/linux/discordjsaichat-linux
+            dist/linux/.env.example
+            dist/linux/status.json
 
-            dist/discordjsaichat-win.exe/discordjsaichat-win.exe
-            dist/discordjsaichat-win.exe/.env.example
-            dist/discordjsaichat-win.exe/status.json
+            dist/win/discordjsaichat-win.exe
+            dist/win/.env.example
+            dist/win/status.json
 
-            dist/discordjsaichat-macos/discordjsaichat-macos
-            dist/discordjsaichat-macos/.env.example
-            dist/discordjsaichat-macos/status.json
+            dist/macos/discordjsaichat-macos
+            dist/macos/.env.example
+            dist/macos/status.json
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
