@@ -2,8 +2,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const mongoose = require('mongoose');
-const { aiClient } = require('../clients/openWebUI.js');
-const { chatgpt } = require('../clients/chatGPTClient.js');
 const Discord = require('discord.js');
 const {
     Client,
@@ -29,7 +27,17 @@ const {
 const Guild = require('../models/guildModel');
 
 const useOpenAIChatGPT = process.env.OPEN_AI === 'true';
-const currentAIClient = useOpenAIChatGPT ? chatgpt : aiClient;
+
+let currentAIClient;
+
+if (useOpenAIChatGPT) {
+    const { chatgpt } = require('../clients/chatGPTClient.js');
+    currentAIClient = chatgpt;
+} else {
+    const { aiClient } = require('../clients/openWebUI.js');
+    currentAIClient = aiClient;
+}
+
 
 async function handleAIMessage(message) {
     try {
@@ -53,7 +61,11 @@ async function handleAIMessage(message) {
             const isInAIUserChannels = aiUserChannels.includes(message.channelId);
 
             if ((isInAIChannel || isInAIUserChannels) && hasRequiredRoles) {
-                await message.channel.sendTyping();
+                const loadingMsg = await message.reply({
+                    content: `<a:discord:1399438262308704517>`,
+                    allowedMentions: { repliedUser: false }
+                });
+
                 let selectedModel = 'llama3:8b';
 
                 if (message.channel.topic && message.channel.topic.startsWith('model=')) {
@@ -76,12 +88,14 @@ async function handleAIMessage(message) {
                     responseMaxLength = currentAIClient.options.maxLength;
                 }
                 if (!isInAIUserChannels) {
+                    await loadingMsg.delete();
                     await message.reply({
-                        content: `<@${message.author.id}> ${aiResponse.substring(0, aiClient.options.maxLength || 2000)}`,
+                        content: aiResponse.substring(0, responseMaxLength),
                         allowedMentions: { repliedUser: true }
                     });
                 } else {
-                    await message.channel.send(aiResponse.substring(0, aiClient.options.maxLength || 2000));
+                    await loadingMsg.delete();
+                    await message.reply(aiResponse.substring(0, aiClient.options.maxLength || 2000));
                 }
 
             } else {

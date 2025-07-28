@@ -1,7 +1,9 @@
-require('dotenv').config();
+#!/usr/bin/env node
+const path = require('path');
+require('dotenv').config({ path: path.join(process.cwd(), '.env') });
+
 const fs = require('fs');
 const express = require('express');
-const path = require('node:path');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const { Client, Collection, Events, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
@@ -18,8 +20,7 @@ const Guild = require('./models/guildModel');
 const app = express();
 const port = process.env.PORT || 3009;
 
-const statusDataRaw = fs.readFileSync('./status.json', 'utf8');
-const statusJson = JSON.parse(statusDataRaw);
+const statusJson = require('./status.json');
 
 function generateUUID() {
 	return uuidv4();
@@ -30,24 +31,6 @@ let status = statusJson.map(entry => ({
     type: ActivityType[entry.type.toUpperCase()],
     url: entry.url
 }));
-
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
-app.get('/status', (req, res) => {
-    const status = {
-        status: 'Bot is running!',
-        uptime: process.uptime(),
-        memoryUsage: process.memoryUsage(),
-        guildCount: client.guilds.cache.size,
-        userCount: client.users.cache.size
-    };
-    res.json(status);
-});
-
-app.get('/status-page', (req, res) => {
-    res.render('status');
-});
 
 app.listen(port, () => {
     console.log(`Status server running at http://localhost:${port}`);
@@ -97,22 +80,12 @@ async function connectToMongo() {
     }
 }
 
-const foldersPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
+// const aiSetupCommand = require('./commands/ai/ai-setup');
+const aiChatCommand = require('./commands/ai/aichat');
 
-for (const folder of commandFolders) {
-    const commandsPath = path.join(foldersPath, folder);
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-        } else {
-            console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-        }
-    }
-}
+// client.commands.set(aiSetupCommand.data.name, aiSetupCommand);
+client.commands.set(aiChatCommand.data.name, aiChatCommand);
+
 
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
@@ -521,6 +494,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 });
+
+if (process.argv.includes('deploy-commands')) {
+    require('./deploy-commands');
+    return;
+}
 
 process.on('SIGINT', async () => {
     try {

@@ -1,7 +1,7 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 const { REST, Routes } = require('discord.js');
 const fs = require('node:fs');
-const path = require('node:path');
 const mongoose = require('mongoose');
 const clientId = process.env.CLIENT_ID;
 const token = process.env.TOKEN;
@@ -39,26 +39,11 @@ async function deployGlobalCommandsOnly() {
     try {
         await connectToMongo();
 
-        const commands = [];
-        const foldersPath = path.join(__dirname, 'commands');
-        const commandFolders = fs.readdirSync(foldersPath);
+        // const aiSetupCommand = require('./commands/ai/ai-setup');
+        const aiChatCommand = require('./commands/ai/aichat');
 
-        for (const folder of commandFolders) {
-            
-                const commandsPath = path.join(foldersPath, folder);
-                const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+        const commands = [aiChatCommand.data];
 
-                for (const file of commandFiles) {
-                    const filePath = path.join(commandsPath, file);
-                    const command = require(filePath);
-
-                    if ('data' in command && 'execute' in command) {
-                        commands.push(command.data);
-                    } else {
-                        console.debug(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-                    }
-                }
-        }
 
         await deployGlobalCommands(commands);
 

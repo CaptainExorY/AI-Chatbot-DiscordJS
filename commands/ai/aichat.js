@@ -1,26 +1,22 @@
-const { SlashCommandBuilder, PermissionsBitField, ChannelType, PermissionFlagsBits, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const Guild = require('../../models/guildModel');
-
-async function createCategory(guild, categoryName) {
-    try {
-        console.info('Creating category with name:', categoryName);
-
-        const newlyCreatedCategory = await guild.channels.create({
-            name: categoryName,
-            type: 4,
-        });
-
-        return newlyCreatedCategory;
-    } catch (error) {
-        console.error(error);
-        throw new Error('Unable to create category.');
-    }
-}
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('aichat-p')
-        .setDescription('Create or close a private AI channel for chatting.')
+        .setName('aichat')
+        .setDescription('Set the AI channel and roles.')
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('setup')
+                .setDescription('Set the AI channel and roles.')
+                .addChannelOption(option =>
+                    option.setName('aichannel')
+                        .setDescription('Select the AI channel.')
+                        .setRequired(true))
+                .addRoleOption(option =>
+                    option.setName('airoles')
+                        .setDescription('Select the AI roles.')
+                        .setRequired(true)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('create')
@@ -42,7 +38,7 @@ module.exports = {
                 .setName('close')
                 .setDescription('Close your private AI channel.')
         )
-        .setDefaultMemberPermissions(PermissionFlagsBits.ViewChannel),
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     async execute(interaction) {
         if (!interaction.guild) {
             interaction.reply({ content: 'You can only run this command inside a server.', ephemeral: true });
@@ -52,7 +48,30 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
 
         try {
-            if (subcommand === 'create') {
+            if (subcommand === 'setup') {
+                const aiChannel = interaction.options.getChannel('aichannel');
+                const aiRoles = interaction.options.getRole('airoles');
+
+                if (aiChannel && aiRoles) {
+                    const guildModel = await Guild.findOne({
+                        key: interaction.guild.id
+                    });
+
+                    if (guildModel) {
+                        guildModel.settings.aiChannel = aiChannel.id;
+                        guildModel.settings.aiRoles = [aiRoles.id];
+                        await guildModel.save();
+
+                        interaction.reply({ content: 'AI channel and roles set successfully!', ephemeral: true });
+                    } else {
+                        const newGuild = new Guild({ key: interaction.guild.id });
+                        await newGuild.save();
+                        interaction.reply({ content: 'The DB Entry has been made, please run the Command again!', ephemeral: true });
+                    }
+                } else {
+                    interaction.reply({ content: 'Please provide both AI channel and roles.', ephemeral: true });
+                }
+            } else if (subcommand === 'create') {
                 const guildModel = await Guild.findOne({
                     key: interaction.guild.id,
                 });
@@ -171,10 +190,7 @@ module.exports = {
             }
         } catch (error) {
             console.error(error);
-            interaction.reply({
-                content: 'Error handling the command. Please try again.',
-                ephemeral: true,
-            });
+            interaction.reply({ content: 'Error handling the command. Please try again.', ephemeral: true });
         }
     },
 };

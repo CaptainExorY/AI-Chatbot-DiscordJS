@@ -7,6 +7,7 @@ const apiKey = process.env.API_KEY;
 const system_prompt = process.env.AI_PROMPT;
 class OpenWebUIClient {
     constructor(apiUrl, apiKey, options = {}) {
+        if (!apiUrl) throw new Error('API_URL is not defined');
         this.apiUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
         this.apiKey = apiKey;
         this.options = options;
