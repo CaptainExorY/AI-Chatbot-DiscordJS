@@ -42,9 +42,9 @@ jobs:
 
       - name: Prepare artifact directory
         run: |
-          mkdir artifacts
-          mv ${{ matrix.file }} artifacts/
-          cp .env.example status.json artifacts/
+          mkdir -p artifacts/${{ matrix.os }}
+          mv ${{ matrix.file }} artifacts/${{ matrix.os }}/
+          cp .env.example status.json artifacts/${{ matrix.os }}/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
