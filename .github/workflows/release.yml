@@ -46,11 +46,16 @@ jobs:
           mv ${{ matrix.file }} artifacts/${{ matrix.os }}/
           cp .env.example status.json artifacts/${{ matrix.os }}/
 
-      - name: Upload artifact
+      - name: Zip artifact
+        run: |
+          cd artifacts/${{ matrix.os }}
+          zip -r ../../${{ matrix.os }}.zip .
+
+      - name: Upload zipped artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}
-          path: artifacts/
+          name: ${{ matrix.os }}-zip
+          path: ${{ matrix.os }}.zip
 
   release:
     needs: build
@@ -64,30 +69,22 @@ jobs:
         id: get_version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
-      - name: Download all artifacts
+      - name: Download all zipped artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: Display artifacts
+      - name: Display downloaded artifacts
         run: ls -R dist
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.VERSION }}
           name: v${{ steps.get_version.outputs.VERSION }}
           files: |
-            dist/linux/discordjsaichat-linux
-            dist/linux/.env.example
-            dist/linux/status.json
-
-            dist/win/discordjsaichat-win.exe
-            dist/win/.env.example
-            dist/win/status.json
-
-            dist/macos/discordjsaichat-macos
-            dist/macos/.env.example
-            dist/macos/status.json
+            dist/linux-zip/linux.zip
+            dist/win-zip/win.zip
+            dist/macos-zip/macos.zip
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
