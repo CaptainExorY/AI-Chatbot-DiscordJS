@@ -37,6 +37,10 @@ jobs:
       - name: Install pkg globally
         run: npm install -g pkg
 
+      - name: Install zip (Linux/macOS only)
+        if: matrix.os != 'win'
+        run: sudo apt-get update && sudo apt-get install -y zip || true
+
       - name: Build binary for ${{ matrix.os }}
         run: pkg . --target=${{ matrix.target }} --output=${{ matrix.file }}
 
@@ -47,9 +51,15 @@ jobs:
           cp .env.example status.json artifacts/${{ matrix.os }}/
 
       - name: Zip artifact
+        if: matrix.os != 'win'
         run: |
           cd artifacts/${{ matrix.os }}
           zip -r ../../${{ matrix.os }}.zip .
+
+      - name: Zip artifact (Windows)
+        if: matrix.os == 'win'
+        run: |
+          powershell Compress-Archive -Path artifacts/win/* -DestinationPath win.zip
 
       - name: Upload zipped artifact
         uses: actions/upload-artifact@v4
