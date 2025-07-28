@@ -40,11 +40,17 @@ jobs:
       - name: Build binary for ${{ matrix.os }}
         run: pkg . --target=${{ matrix.target }} --output=${{ matrix.file }}
 
+      - name: Prepare artifact directory
+        run: |
+          mkdir artifacts
+          mv ${{ matrix.file }} artifacts/
+          cp .env.example status.json artifacts/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.file }}
-          path: ${{ matrix.file }}
+          path: artifacts/
 
   release:
     needs: build
@@ -73,7 +79,15 @@ jobs:
           name: v${{ steps.get_version.outputs.VERSION }}
           files: |
             dist/discordjsaichat-linux/discordjsaichat-linux
+            dist/discordjsaichat-linux/.env.example
+            dist/discordjsaichat-linux/status.json
+
             dist/discordjsaichat-win.exe/discordjsaichat-win.exe
+            dist/discordjsaichat-win.exe/.env.example
+            dist/discordjsaichat-win.exe/status.json
+
             dist/discordjsaichat-macos/discordjsaichat-macos
+            dist/discordjsaichat-macos/.env.example
+            dist/discordjsaichat-macos/status.json
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}

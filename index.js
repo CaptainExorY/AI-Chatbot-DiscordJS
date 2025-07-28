@@ -1,29 +1,29 @@
 #!/usr/bin/env node
 const path = require('path');
-require('dotenv').config({ path: path.join(process.cwd(), '.env') });
+require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 
 const fs = require('fs');
 const express = require('express');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
-const { Client, Collection, Events, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, InteractionResponseType, MessageFlags } = require('discord.js');
 const token = process.env.TOKEN;
 const mongoURI = process.env.MONGO_URI;
+const debug = process.env.DEBUG_MODE === 'true';
 const { ActivityType } = require("discord.js");
 const AiChatLog = require('./models/aiChatLog');
 const {
-	v4: uuidv4,
+    v4: uuidv4,
 } = require('uuid');
 
 const Guild = require('./models/guildModel');
 
-const app = express();
 const port = process.env.PORT || 3009;
 
 const statusJson = require('./status.json');
 
 function generateUUID() {
-	return uuidv4();
+    return uuidv4();
 }
 
 let status = statusJson.map(entry => ({
@@ -31,10 +31,6 @@ let status = statusJson.map(entry => ({
     type: ActivityType[entry.type.toUpperCase()],
     url: entry.url
 }));
-
-app.listen(port, () => {
-    console.log(`Status server running at http://localhost:${port}`);
-});
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildPresences, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
@@ -80,10 +76,8 @@ async function connectToMongo() {
     }
 }
 
-// const aiSetupCommand = require('./commands/ai/ai-setup');
 const aiChatCommand = require('./commands/ai/aichat');
 
-// client.commands.set(aiSetupCommand.data.name, aiSetupCommand);
 client.commands.set(aiChatCommand.data.name, aiChatCommand);
 
 
@@ -201,7 +195,9 @@ client.on(Events.InteractionCreate, async interaction => {
         return { name: option.name, type: option.type, value };
     });
 
-    // console.log(`Optionen: ${JSON.stringify(options)}`);
+    if (debug) {
+        console.log(`Optionen: ${JSON.stringify(options)}`);
+    }
 
     try {
         await command.execute(interaction, client);
@@ -209,19 +205,21 @@ client.on(Events.InteractionCreate, async interaction => {
         commandStats[commandName].count++;
         commandStats[commandName].totalDuration += duration;
 
+        if (debug) {
+            console.log("Command executed", {
+                guildName: interaction.guild.name,
+                guildId: interaction.guild.id,
+                channelName: interaction.channel.name,
+                channelId: interaction.channel.id,
+                userName: interaction.user.username,
+                userId: interaction.user.id,
+                commandName,
+                subCommand: interaction.options.getSubcommand(false),
+                options,
+                duration: `${duration} ms`
+            });
+        }
 
-        // console.log("Command executed", {
-        //     guildName: interaction.guild.name,
-        //     guildId: interaction.guild.id,
-        //     channelName: interaction.channel.name,
-        //     channelId: interaction.channel.id,
-        //     userName: interaction.user.username,
-        //     userId: interaction.user.id,
-        //     commandName,
-        //     subCommand: interaction.options.getSubcommand(false),
-        //     options,
-        //     duration: `${duration} ms`
-        // });
     } catch (error) {
         console.error(`Command execution error: ${error.message}`, {
             commandName: commandName,
@@ -237,12 +235,12 @@ client.on(Events.InteractionCreate, async interaction => {
         if (interaction.replied || interaction.deferred) {
             await interaction.followUp({
                 content: `There was an error while executing this command!`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         } else {
             await interaction.reply({
                 content: 'There was an error while executing this command!',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
     }
@@ -267,11 +265,15 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 client.on('rateLimited', async (interaction) => {
-    console.log('Rate Limited');
+    if (debug) {
+        console.log('Rate Limited');
+    }
 });
 
 client.on('rateLimit', async (interaction) => {
-    console.log('Rate Limited');
+    if (debug) {
+        console.log('Rate Limited');
+    }
 });
 
 client.on('messageCreate', async (message) => {
@@ -306,7 +308,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.reply({
             embeds: [confirmEmbed],
             components: [confirmRow],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
 
         return;
@@ -339,7 +341,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (!userChannelId) {
                 await interaction.reply({
                     content: 'You do not have permission to close this AI channel.',
-                    ephemeral: true,
+                    flags: MessageFlags.Ephemeral,
                 });
                 return;
             }
@@ -488,7 +490,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             console.error('Error closing AI chat:', error);
             await interaction.reply({
                 content: 'Etwas ist beim Schließen des AI-Chats schiefgelaufen.',
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
         }
         return;
@@ -503,7 +505,9 @@ if (process.argv.includes('deploy-commands')) {
 process.on('SIGINT', async () => {
     try {
         await mongoose.connection.close();
-        console.log('Closed MongoDB connection');
+        if (debug) {
+            console.log('Closed MongoDB connection');
+        }
         process.exit(0);
     } catch (error) {
         console.error('Error closing MongoDB connection:', error);

@@ -39,7 +39,6 @@ async function deployGlobalCommandsOnly() {
     try {
         await connectToMongo();
 
-        // const aiSetupCommand = require('./commands/ai/ai-setup');
         const aiChatCommand = require('./commands/ai/aichat');
 
         const commands = [aiChatCommand.data];
