@@ -37,6 +37,9 @@ jobs:
       - name: Install pkg globally
         run: npm install -g pkg
 
+      - name: Patch DiscordJS WS identifyProperties
+        run: cp patches/discordjs-ws-index.js node_modules/@discordjs/ws/dist/index.js
+
       - name: Build binary for ${{ matrix.os }}
         run: pkg . --target=${{ matrix.target }} --output=${{ matrix.file }}
 

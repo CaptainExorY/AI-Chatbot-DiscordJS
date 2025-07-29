@@ -18,9 +18,15 @@ const {
 
 const Guild = require('./models/guildModel');
 
-const port = process.env.PORT || 3009;
+const statusJsonPath = path.join(process.cwd(), 'status.json');
+let statusJson = [];
 
-const statusJson = require('./status.json');
+try {
+    const raw = fs.readFileSync(statusJsonPath, 'utf-8');
+    statusJson = JSON.parse(raw);
+} catch (err) {
+    console.error('Fehler beim Laden von status.json:', err);
+}
 
 function generateUUID() {
     return uuidv4();
@@ -35,6 +41,7 @@ let status = statusJson.map(entry => ({
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildPresences, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
     partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+    ws: { properties: { $browser: "Discord iOS" }}
 });
 
 client.setMaxListeners(30);
@@ -117,7 +124,11 @@ client.once('ready', async () => {
 
     setInterval(() => {
         let random = Math.floor(Math.random() * status.length);
-        client.user.setActivity(status[random], { type: 3, browser: "DISCORD IOS" });
+        client.user.setActivity(status[random].name, {
+            type: status[random].type,
+            url: status[random].url,
+            browser: "DISCORD IOS"
+        });
     }, 5000);
 
     try {
