@@ -1,16 +1,26 @@
 [
   {
-    "name": "Status 1",
+    "name": "Status 111",
+    "type": "Watching",
+    "url": "https://example.com"
+  },
+  {
+    "name": "with your Mom",
     "type": "Playing",
     "url": "https://example.com"
   },
   {
-    "name": "Status 1",
+    "name": "Hell",
+    "type": "Competing",
+    "url": "https://example.com"
+  },
+  {
+    "name": "with {totalUsers} buddies",
     "type": "Playing",
     "url": "https://example.com"
   },
   {
-    "name": "Status 1",
+    "name": "on {totalGuilds} Servers",
     "type": "Playing",
     "url": "https://example.com"
   }

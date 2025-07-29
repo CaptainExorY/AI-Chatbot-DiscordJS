@@ -3,14 +3,12 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 
 const fs = require('fs');
-const express = require('express');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
-const { Client, Collection, Events, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, InteractionResponseType, MessageFlags } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, InteractionResponseType, MessageFlags, ActivityType } = require('discord.js');
 const token = process.env.TOKEN;
 const mongoURI = process.env.MONGO_URI;
 const debug = process.env.DEBUG_MODE === 'true';
-const { ActivityType } = require("discord.js");
 const AiChatLog = require('./models/aiChatLog');
 const {
     v4: uuidv4,
@@ -28,13 +26,22 @@ try {
     console.error('Fehler beim Laden von status.json:', err);
 }
 
+const activityTypeMap = {
+  Playing: ActivityType.Playing,
+  Streaming: ActivityType.Streaming,
+  Listening: ActivityType.Listening,
+  Watching: ActivityType.Watching,
+  Custom: ActivityType.Custom,
+  Competing: ActivityType.Competing
+};
+
 function generateUUID() {
     return uuidv4();
 }
 
 let status = statusJson.map(entry => ({
     name: entry.name,
-    type: ActivityType[entry.type.toUpperCase()],
+    type: entry.type,
     url: entry.url
 }));
 
@@ -99,34 +106,58 @@ process.on('uncaughtException', (err) => {
 
 });
 
+async function fetchTotalOnlineUsers() {
+    let totalOnlineUsers = 0;
+    const fetchPromises = [];
+
+    client.guilds.cache.forEach(guild => {
+        fetchPromises.push(guild.members.fetch()
+            .then(fetchedMembers => {
+                const onlineMembers = fetchedMembers.filter(member =>
+                    ['online', 'idle', 'dnd', 'offline'].includes(member.presence?.status));
+                totalOnlineUsers += onlineMembers.size;
+            })
+            .catch(error => {
+                console.error(`Error fetching members for guild ${guild.name}:`, error);
+            }));
+    });
+
+    await Promise.all(fetchPromises);
+    return totalOnlineUsers;
+}
+
 client.once('ready', async () => {
     console.log(`${client.user.tag} is Online`);
 
-    async function fetchTotalOnlineUsers() {
-        let totalOnlineUsers = 0;
-        const fetchPromises = [];
+    setInterval(async () => {
+        const random = Math.floor(Math.random() * status.length);
+        const entry = status[random];
 
-        client.guilds.cache.forEach(guild => {
-            fetchPromises.push(guild.members.fetch()
-                .then(fetchedMembers => {
-                    const onlineMembers = fetchedMembers.filter(member => ['online', 'idle', 'dnd', 'offline'].includes(member.presence?.status));
-                    totalOnlineUsers += onlineMembers.size;
-                })
-                .catch(error => {
-                    console.error(`Error fetching members for guild ${guild.name}:`, error);
-                }));
+        const mappedType = activityTypeMap[entry.type];
+        if (mappedType === undefined) {
+            console.warn(`Unbekannter Activity-Typ: ${entry.type}`);
+            return;
+        }
+
+        let statusText = entry.name;
+
+        const replacements = {};
+
+        if (statusText.includes('{totalUsers}')) {
+            replacements['{totalUsers}'] = await fetchTotalOnlineUsers();
+        }
+
+        if (statusText.includes('{totalGuilds}')) {
+            replacements['{totalGuilds}'] = client.guilds.cache.size;
+        }
+
+        Object.entries(replacements).forEach(([key, value]) => {
+            statusText = statusText.replaceAll(key, value.toString());
         });
 
-        await Promise.all(fetchPromises);
-
-        return totalOnlineUsers;
-    }
-
-    setInterval(() => {
-        let random = Math.floor(Math.random() * status.length);
-        client.user.setActivity(status[random].name, {
-            type: status[random].type,
-            url: status[random].url,
+        client.user.setActivity(statusText, {
+            type: mappedType,
+            url: entry.url || undefined,
             browser: "DISCORD IOS"
         });
     }, 5000);
